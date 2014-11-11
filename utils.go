@@ -1,15 +1,10 @@
 package main
 
-import (
-	"fmt"
-	"strings"
+import "io"
 
-	gh "github.com/crosbymichael/octokat"
-)
+type nopWriteCloser struct {
+	io.Writer
+}
 
-func parseRepository(repo string) (*gh.Repo, error) {
-	if splitRepos := strings.Split(repo, "/"); len(splitRepos) == 2 {
-		return &gh.Repo{Name: splitRepos[1], UserName: splitRepos[0]}, nil
-	}
-	return nil, fmt.Errorf("bad repo format %s (expected username/repo)", repo)
+func (*nopWriteCloser) Close() {
 }

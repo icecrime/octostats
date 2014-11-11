@@ -1,7 +1,6 @@
-package main
+package stats
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -15,7 +14,7 @@ type metric struct {
 	Value int
 }
 
-func collectOpenedPullRequests(out chan<- metric) {
+func collectOpenedPullRequests(repository Repository, out chan<- metric) {
 	pullRequests, err := repository.PullRequests("open", "updated")
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -27,7 +26,7 @@ func collectOpenedPullRequests(out chan<- metric) {
 	}
 }
 
-func collectClosedPullRequests(out chan<- metric) {
+func collectClosedPullRequests(repository Repository, out chan<- metric) {
 	pullRequests, err := repository.PullRequests("closed", "updated")
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -35,7 +34,7 @@ func collectClosedPullRequests(out chan<- metric) {
 	out <- metric{Path: "pull_requests.closed", Value: len(pullRequests)}
 }
 
-func collectOpenedIssues(out chan<- metric) {
+func collectOpenedIssues(repository Repository, out chan<- metric) {
 	issues, err := repository.Issues("open", "updated")
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -43,7 +42,7 @@ func collectOpenedIssues(out chan<- metric) {
 	out <- metric{Path: "issues.open", Value: len(issues)}
 }
 
-func collectClosedIssues(out chan<- metric) {
+func collectClosedIssues(repository Repository, out chan<- metric) {
 	issues, err := repository.Issues("closed", "updated")
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -51,9 +50,9 @@ func collectClosedIssues(out chan<- metric) {
 	out <- metric{Path: "issues.closed", Value: len(issues)}
 }
 
-func (metrics Metrics) Compute() {
+func (metrics Metrics) Compute(repository Repository) {
 	feed := make(chan metric, 100)
-	tasks := []func(chan<- metric){
+	tasks := []func(Repository, chan<- metric){
 		collectOpenedIssues,
 		collectClosedIssues,
 		collectOpenedPullRequests,
@@ -63,9 +62,9 @@ func (metrics Metrics) Compute() {
 	var waitGrp sync.WaitGroup
 	waitGrp.Add(len(tasks))
 	for _, fn := range tasks {
-		go func(fn func(chan<- metric)) {
+		go func(fn func(Repository, chan<- metric)) {
 			defer waitGrp.Done()
-			fn(feed)
+			fn(repository, feed)
 		}(fn)
 	}
 	waitGrp.Wait()
@@ -78,13 +77,5 @@ func (metrics Metrics) Compute() {
 			close(feed)
 			return
 		}
-	}
-}
-
-func (metrics Metrics) Output() {
-	timestamp := time.Now().Unix()
-	metricsPrefix := fmt.Sprintf("github.%s.%s", repository.Id().UserName, repository.Id().Name)
-	for name, value := range metrics {
-		fmt.Printf("%s.%s %d %d\n", metricsPrefix, name, value, timestamp)
 	}
 }

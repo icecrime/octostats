@@ -4,6 +4,8 @@ import (
 	"io/ioutil"
 	"strconv"
 
+	"github.com/icecrime/octostats/stats"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
 	gh "github.com/crosbymichael/octokat"
@@ -21,7 +23,7 @@ func githubAuthToken(cli *cli.Context) string {
 	return token
 }
 
-func NewGitHubRepository(cli *cli.Context, id *gh.Repo) (Repository, error) {
+func NewGitHubRepository(cli *cli.Context, id *gh.Repo) (stats.Repository, error) {
 	ghClient := gh.NewClient()
 	ghClient.Token = githubAuthToken(cli)
 	return &gitHubRepository{id: id, client: ghClient}, nil
