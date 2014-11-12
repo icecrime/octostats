@@ -3,32 +3,33 @@ package influx
 import (
 	"fmt"
 
-	"github.com/icecrime/octostats/stats"
+	"github.com/icecrime/octostats/metrics"
 
 	influxClient "github.com/influxdb/influxdb/client"
 )
 
-func New(target, database, user, password string) *store {
+type Config struct {
+	Endpoint string `json:"endpoint"`
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func New(config *Config) *store {
 	return &store{
-		target:   target,
-		database: database,
-		user:     user,
-		password: password,
+		config: config,
 	}
 }
 
 type store struct {
-	target   string
-	database string
-	user     string
-	password string
+	config *Config
 }
 
-func (*store) format(repository stats.Repository, metrics stats.Metrics) []*influxClient.Series {
+func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
-	metricsPrefix := fmt.Sprintf("%s.%s", repository.Id().UserName, repository.Id().Name)
+	metricsPrefix := fmt.Sprintf("%s.%s", metrics.Origin.UserName, metrics.Origin.Name)
 
-	for k, v := range metrics {
+	for k, v := range metrics.Items {
 		series = append(series, &influxClient.Series{
 			Name:    fmt.Sprintf("%s.%s", metricsPrefix, k),
 			Columns: []string{"count"},
@@ -39,15 +40,15 @@ func (*store) format(repository stats.Repository, metrics stats.Metrics) []*infl
 	return series
 }
 
-func (s *store) Send(repository stats.Repository, metrics stats.Metrics) error {
+func (s *store) Send(metrics *metrics.Metrics) error {
 	client, err := influxClient.NewClient(&influxClient.ClientConfig{
-		Host:     s.target,
-		Database: s.database,
-		Username: s.user,
-		Password: s.password,
+		Host:     s.config.Endpoint,
+		Database: s.config.Database,
+		Username: s.config.Username,
+		Password: s.config.Password,
 	})
 	if err != nil {
 		return err
 	}
-	return client.WriteSeries(s.format(repository, metrics))
+	return client.WriteSeries(s.format(metrics))
 }

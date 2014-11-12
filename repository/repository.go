@@ -1,4 +1,4 @@
-package stats
+package repository
 
 import (
 	gh "github.com/crosbymichael/octokat"

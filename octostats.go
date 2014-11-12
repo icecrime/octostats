@@ -1,84 +1,53 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/icecrime/octostats/graphite"
-	"github.com/icecrime/octostats/influx"
-	"github.com/icecrime/octostats/stats"
+	"github.com/icecrime/octostats/metrics"
+	"github.com/icecrime/octostats/nsq"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	gh "github.com/crosbymichael/octokat"
 )
 
-var repository stats.Repository
-
-func newStore(cli *cli.Context) Store {
-	target := cli.String("target")
-	switch cli.String("output") {
-	case "graphite":
-		return graphite.New(target)
-	case "influx":
-		return influx.New(target, cli.String("influx-database"), cli.String("influx-username"), cli.String("influx-password"))
-	default:
-		log.Fatal("Invalid output '%s'", cli.String("output"))
-		return nil
-	}
-}
-
-func parseRepository(repo string) (*gh.Repo, error) {
-	if splitRepos := strings.Split(repo, "/"); len(splitRepos) == 2 {
-		return &gh.Repo{Name: splitRepos[1], UserName: splitRepos[0]}, nil
-	}
-	return nil, fmt.Errorf("bad repo format %s (expected username/repo)", repo)
-}
-
-func before(cli *cli.Context) error {
-	if len(cli.Args()) > 0 {
-		log.Fatalf("too many arguments")
-	}
-
-	repoId, err := parseRepository(cli.String("repository"))
+func updateTicker() *time.Ticker {
+	duration, err := time.ParseDuration(config.UpdateFrequency)
 	if err != nil {
-		return err
+		logger.Fatal(err)
 	}
+	return time.NewTicker(duration)
+}
 
-	repository, err = NewGitHubRepository(cli, repoId)
-	return err
+func onTimerTick() {
+	logger.Debug("Tick: fetching statistics")
+	stats := metrics.Retrieve(source)
+	if err := store.Send(stats); err != nil {
+		logger.Error(err)
+	}
 }
 
 func mainCommand(cli *cli.Context) {
-	metrics := stats.Metrics{}
-	metrics.Compute(repository)
+	s := make(chan os.Signal, 64)
+	signal.Notify(s, syscall.SIGTERM, syscall.SIGINT)
 
-	store := newStore(cli)
-	if err := store.Send(repository, metrics); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func main() {
-	app := cli.NewApp()
-	app.Action = mainCommand
-	app.Before = before
-	app.Name = "octostats"
-	app.Usage = "Extract metrics from a github repository"
-
-	app.Flags = []cli.Flag{
-		cli.StringFlag{Name: "output", Value: "influx", Usage: "output (influx|graphite)"},
-		cli.StringFlag{Name: "repository", Value: "docker/docker", Usage: "target repository (e.g: icecrime/docker"},
-		cli.StringFlag{Name: "target", Value: "", Usage: "endpoint to send the output to"},
-		cli.StringFlag{Name: "token", Value: "", Usage: "authentication token"},
-		cli.StringFlag{Name: "token-file", Value: "", Usage: "authentication token file"},
-		cli.StringFlag{Name: "influx-database", Value: "", Usage: "InfluxDB database to write to"},
-		cli.StringFlag{Name: "influx-password", Value: "", Usage: "password for InfluxDB"},
-		cli.StringFlag{Name: "influx-username", Value: "", Usage: "username for InfluxDB"},
+	queue, err := nsq.New(&config.NSQConfig, NewNSQHandler())
+	if err != nil {
+		logger.Fatal(err)
 	}
 
-	if err := app.Run(os.Args); err != nil {
-		log.Fatalf(err.Error())
+	ticker := updateTicker()
+	for {
+		select {
+		case <-ticker.C:
+			onTimerTick()
+		case <-queue.Consumer.StopChan:
+			logger.Debug("Queue stop channel signaled")
+			return
+		case sig := <-s:
+			logger.WithField("signal", sig).Debug("received signal")
+			queue.Consumer.Stop()
+		}
 	}
 }

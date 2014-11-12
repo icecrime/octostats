@@ -1,0 +1,26 @@
+{
+    "output": "graphite",
+    "update_frequency": "1m",
+
+    "github": {
+        "tokenfile": ".gittoken",
+        "repository": "icecrime/octostats"
+    },
+
+    "graphite": {
+        "endpoint": "localhost:2003"
+    },
+
+    "influxdb": {
+        "endpoint": "localhost:8086",
+        "database": "db",
+        "username": "user",
+        "password": "pass"
+    },
+
+    "nsq": {
+        "topic": "topic",
+        "channel": "channel",
+        "lookup_address": "lookup:1234"
+    }
+}

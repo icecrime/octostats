@@ -1,7 +1,20 @@
 package main
 
-import "github.com/icecrime/octostats/stats"
+import (
+	"github.com/icecrime/octostats/metrics"
+)
 
 type Store interface {
-	Send(stats.Repository, stats.Metrics) error
+	Send(*metrics.Metrics) error
+}
+
+type debugStore struct {
+}
+
+func (*debugStore) Send(m *metrics.Metrics) error {
+	logger.WithField("origin", m.Origin.String()).Info("Sending metrics")
+	for k, v := range m.Items {
+		logger.Info("  %s = %d", k, v)
+	}
+	return nil
 }

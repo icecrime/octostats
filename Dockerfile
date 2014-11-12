@@ -1,10 +1,6 @@
-FROM google/golang
+FROM golang:1.3
 
-RUN apt-get install -y -q netcat
-
-WORKDIR /gopath/src/app
-ADD . /gopath/src/app/
-RUN go get app
-
-CMD []
-ENTRYPOINT ["/gopath/src/app/run.sh"]
+COPY . /go/src/github.com/icecrime/octostats
+WORKDIR /go/src/github.com/icecrime/octostats
+RUN go get -d ./... && go install ./...
+ENTRYPOINT ["octostats"]

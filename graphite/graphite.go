@@ -6,36 +6,40 @@ import (
 	"net"
 	"time"
 
-	"github.com/icecrime/octostats/stats"
+	"github.com/icecrime/octostats/metrics"
 )
 
-func New(target string) *store {
-	return &store{target: target}
+type Config struct {
+	Endpoint string `json:"endpoint"`
+}
+
+func New(config *Config) *store {
+	return &store{endpoint: config.Endpoint}
 }
 
 type store struct {
-	target string
+	endpoint string
 }
 
-func (*store) format(repository stats.Repository, metrics stats.Metrics) []byte {
+func (*store) format(metrics *metrics.Metrics) []byte {
 	timestamp := time.Now().Unix()
-	metricsPrefix := fmt.Sprintf("github.%s.%s", repository.Id().UserName, repository.Id().Name)
+	metricsPrefix := fmt.Sprintf("github.%s.%s", metrics.Origin.UserName, metrics.Origin.Name)
 
 	var buffer bytes.Buffer
-	for key, value := range metrics {
+	for key, value := range metrics.Items {
 		buffer.WriteString(fmt.Sprintf("%s.%s %d %d\n", metricsPrefix, key, value, timestamp))
 	}
 	return buffer.Bytes()
 }
 
-func (s *store) Send(repository stats.Repository, metrics stats.Metrics) error {
-	conn, err := net.Dial("tcp", s.target)
+func (s *store) Send(metrics *metrics.Metrics) error {
+	conn, err := net.Dial("tcp", s.endpoint)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	payload := s.format(repository, metrics)
+	payload := s.format(metrics)
 	_, err = conn.Write(payload)
 	return err
 }
