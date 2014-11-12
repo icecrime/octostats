@@ -16,14 +16,15 @@ import (
 
 var repository stats.Repository
 
-func newStore(store, target string) Store {
-	switch store {
+func newStore(cli *cli.Context) Store {
+	target := cli.String("target")
+	switch cli.String("output") {
 	case "graphite":
 		return graphite.New(target)
 	case "influx":
-		return influx.New(target)
+		return influx.New(target, cli.String("influx-database"), cli.String("influx-username"), cli.String("influx-password"))
 	default:
-		log.Fatal("Invalid store '%s'", store)
+		log.Fatal("Invalid output '%s'", cli.String("output"))
 		return nil
 	}
 }
@@ -53,7 +54,7 @@ func mainCommand(cli *cli.Context) {
 	metrics := stats.Metrics{}
 	metrics.Compute(repository)
 
-	store := newStore(cli.String("output"), cli.String("target"))
+	store := newStore(cli)
 	if err := store.Send(repository, metrics); err != nil {
 		log.Fatal(err)
 	}
@@ -72,6 +73,9 @@ func main() {
 		cli.StringFlag{Name: "target", Value: "", Usage: "endpoint to send the output to"},
 		cli.StringFlag{Name: "token", Value: "", Usage: "authentication token"},
 		cli.StringFlag{Name: "token-file", Value: "", Usage: "authentication token file"},
+		cli.StringFlag{Name: "influx-database", Value: "", Usage: "InfluxDB database to write to"},
+		cli.StringFlag{Name: "influx-password", Value: "", Usage: "password for InfluxDB"},
+		cli.StringFlag{Name: "influx-username", Value: "", Usage: "username for InfluxDB"},
 	}
 
 	if err := app.Run(os.Args); err != nil {

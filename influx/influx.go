@@ -8,12 +8,20 @@ import (
 	influxClient "github.com/influxdb/influxdb/client"
 )
 
-func New(target string) *store {
-	return &store{target: target}
+func New(target, database, user, password string) *store {
+	return &store{
+		target:   target,
+		database: database,
+		user:     user,
+		password: password,
+	}
 }
 
 type store struct {
-	target string
+	target   string
+	database string
+	user     string
+	password string
 }
 
 func (*store) format(repository stats.Repository, metrics stats.Metrics) []*influxClient.Series {
@@ -34,7 +42,9 @@ func (*store) format(repository stats.Repository, metrics stats.Metrics) []*infl
 func (s *store) Send(repository stats.Repository, metrics stats.Metrics) error {
 	client, err := influxClient.NewClient(&influxClient.ClientConfig{
 		Host:     s.target,
-		Database: "github",
+		Database: s.database,
+		Username: s.user,
+		Password: s.password,
 	})
 	if err != nil {
 		return err
