@@ -91,7 +91,7 @@ func (repo *gitHubRepository) PullRequests(state, sort string) ([]*gh.PullReques
 	prevSize := -1
 	allPullRequests := []*gh.PullRequest{}
 	for page := 1; len(allPullRequests) != prevSize; page++ {
-		logProgress("issues", state, page)
+		logProgress("pull-requests", state, page)
 		o.QueryParams["page"] = strconv.Itoa(page)
 		if prs, err := repo.client.PullRequests(*repo.id, o); err != nil {
 			return nil, err
