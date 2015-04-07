@@ -28,9 +28,8 @@
 			"Rev": "9b2bd2b3489748d4d0a204fa4eb2ee9e89e0ebc6"
 		},
 		{
-			"ImportPath": "github.com/crosbymichael/octokat",
-			"Comment": "0.3.0-64-g232aef5",
-			"Rev": "232aef54b65e82ee196dfc2f2ad2cacd8ec47043"
+			"ImportPath": "github.com/fhs/go-netrc/netrc",
+			"Rev": "4422b68c9c934b03e8e53ef18c8c8714542def7e"
 		},
 		{
 			"ImportPath": "github.com/influxdb/influxdb/client",
@@ -38,9 +37,23 @@
 			"Rev": "9daf68b8ad65668d96e3e6b989d03552d2942c94"
 		},
 		{
+			"ImportPath": "github.com/jingweno/go-sawyer",
+			"Rev": "1999ae5763d678f3ce1112cf1fda7c7e9cf2aadf"
+		},
+		{
+			"ImportPath": "github.com/jtacoma/uritemplates",
+			"Comment": "0.1-14-g0a85813",
+			"Rev": "0a85813ecac22e3cbe916ab9480b33f2f4a06b2e"
+		},
+		{
 			"ImportPath": "github.com/mreiferson/go-snappystream",
 			"Comment": "v0.2.2-8-ga5260a3",
 			"Rev": "a5260a307b3e7dd583283c1e2717445244d506c7"
+		},
+		{
+			"ImportPath": "github.com/octokit/go-octokit/octokit",
+			"Comment": "v0.4.0-170-g90dc35e",
+			"Rev": "90dc35e5b6dbabe929fa4db57f54c187f5206cb2"
 		}
 	]
 }
