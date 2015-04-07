@@ -1,0 +1,46 @@
+{
+	"ImportPath": "github.com/icecrime/octostats",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/snappy-go/snappy",
+			"Comment": "null-20",
+			"Rev": "8850bd446ad6f18a271a08aae26bdf85bdf87c7f"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.7.2-4-gcdd90c3",
+			"Rev": "cdd90c38c6e3718c731b555b9c3ed1becebec3ba"
+		},
+		{
+			"ImportPath": "github.com/bitly/go-nsq",
+			"Comment": "v1.0.3-25-gda20c0d",
+			"Rev": "da20c0d08a1a18a49af7b0f159b575c88436d37c"
+		},
+		{
+			"ImportPath": "github.com/bitly/go-simplejson",
+			"Comment": "v0.4.3-30-g18db6e6",
+			"Rev": "18db6e68d8fd9cbf2e8ebe4c81a78b96fd9bf05a"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.2.0-95-g9b2bd2b",
+			"Rev": "9b2bd2b3489748d4d0a204fa4eb2ee9e89e0ebc6"
+		},
+		{
+			"ImportPath": "github.com/crosbymichael/octokat",
+			"Comment": "0.3.0-64-g232aef5",
+			"Rev": "232aef54b65e82ee196dfc2f2ad2cacd8ec47043"
+		},
+		{
+			"ImportPath": "github.com/influxdb/influxdb/client",
+			"Comment": "v0.8.3-1-g9daf68b",
+			"Rev": "9daf68b8ad65668d96e3e6b989d03552d2942c94"
+		},
+		{
+			"ImportPath": "github.com/mreiferson/go-snappystream",
+			"Comment": "v0.2.2-8-ga5260a3",
+			"Rev": "a5260a307b3e7dd583283c1e2717445244d506c7"
+		}
+	]
+}
