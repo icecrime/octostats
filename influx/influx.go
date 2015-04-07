@@ -27,7 +27,7 @@ type store struct {
 
 func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
-	metricsPrefix := fmt.Sprintf("%s.%s", metrics.Origin.UserName, metrics.Origin.Name)
+	metricsPrefix := metrics.Origin.Nwo()
 
 	for k, v := range metrics.Items {
 		series = append(series, &influxClient.Series{
