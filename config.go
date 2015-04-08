@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/icecrime/octostats/graphite"
 	"github.com/icecrime/octostats/influx"
 	"github.com/icecrime/octostats/nsq"
 
@@ -22,10 +21,9 @@ type Config struct {
 	StoreEndpoint   string `json:"store"`
 	UpdateFrequency string `json:"update_frequency"`
 
-	GitHubConfig   GitHubConfig    `json:"github"`
-	GraphiteConfig graphite.Config `json:"graphite"`
-	InfluxDBConfig influx.Config   `json:"influxdb"`
-	NSQConfig      nsq.Config      `json:"nsq"`
+	GitHubConfig   GitHubConfig  `json:"github"`
+	InfluxDBConfig influx.Config `json:"influxdb"`
+	NSQConfig      nsq.Config    `json:"nsq"`
 }
 
 func loadConfig(filename string) *Config {

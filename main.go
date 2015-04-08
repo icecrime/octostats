@@ -5,7 +5,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	"github.com/icecrime/octostats/graphite"
 	"github.com/icecrime/octostats/influx"
 	"github.com/icecrime/octostats/repository"
 )
@@ -30,8 +29,6 @@ func newStore(config *Config) Store {
 	switch config.Output {
 	case "console":
 		return &debugStore{}
-	case "graphite":
-		return graphite.New(&config.GraphiteConfig)
 	case "influxdb":
 		return influx.New(&config.InfluxDBConfig)
 	default:
