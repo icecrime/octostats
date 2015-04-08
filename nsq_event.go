@@ -38,7 +38,9 @@ func (n *NSQHandler) HandleMessage(m *nsq.Message) error {
 	if p.Action == "closed" && p.PullRequest.ClosedAt != nil {
 		mergeString := map[bool]string{true: "merged", false: "not_merged"}
 		metricsPath := fmt.Sprintf("pull_requests.close_delay.%s", mergeString[p.PullRequest.Merged])
-		stats.Items[metricsPath] = int(p.PullRequest.ClosedAt.Sub(p.PullRequest.CreatedAt).Hours())
+		hours := int(p.PullRequest.ClosedAt.Sub(p.PullRequest.CreatedAt).Hours())
+		metric := metrics.NewMetric(metricsPath, map[string]interface{}{"count": hours})
+		stats.Items = append(stats.Items, metric)
 	}
 
 	if err := n.store.Send(stats); err != nil {

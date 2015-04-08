@@ -29,11 +29,19 @@ func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
 	metricsPrefix := metrics.Origin.Nwo()
 
-	for k, v := range metrics.Items {
+	for _, m := range metrics.Items {
+		var columns []string
+		var points [][]interface{}
+
+		for k, v := range m.Data {
+			columns = append(columns, k)
+			points = append(points, []interface{}{v})
+		}
+
 		series = append(series, &influxClient.Series{
-			Name:    fmt.Sprintf("%s.%s", metricsPrefix, k),
-			Columns: []string{"count"},
-			Points:  [][]interface{}{{v}},
+			Name:    fmt.Sprintf("%s.%s", metricsPrefix, m.Path),
+			Columns: columns,
+			Points:  points,
 		})
 	}
 
