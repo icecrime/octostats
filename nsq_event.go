@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bitly/go-nsq"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/metrics"
 )
 
@@ -27,7 +28,7 @@ type NSQHandler struct {
 }
 
 func (n *NSQHandler) HandleMessage(m *nsq.Message) error {
-	logger.Debug("Queue event received")
+	log.Logger.Debug("Queue event received")
 
 	var p partialPayload
 	if err := json.Unmarshal(m.Body, &p); err != nil {
@@ -44,7 +45,7 @@ func (n *NSQHandler) HandleMessage(m *nsq.Message) error {
 	}
 
 	if err := n.store.Send(stats); err != nil {
-		logger.Error(err)
+		log.Logger.Error(err)
 	}
 	return nil
 }

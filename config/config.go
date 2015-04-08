@@ -1,13 +1,10 @@
-package main
+package config
 
 import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/icecrime/octostats/influx"
 	"github.com/icecrime/octostats/nsq"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 type GitHubConfig struct {
@@ -16,25 +13,32 @@ type GitHubConfig struct {
 	Repository    string `json:"repository"`
 }
 
+type InfluxConfig struct {
+	Endpoint string `json:"endpoint"`
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type Config struct {
 	Output          string `json:"output"`
 	StoreEndpoint   string `json:"store"`
 	UpdateFrequency string `json:"update_frequency"`
 
-	GitHubConfig   GitHubConfig  `json:"github"`
-	InfluxDBConfig influx.Config `json:"influxdb"`
-	NSQConfig      nsq.Config    `json:"nsq"`
+	GitHubConfig   GitHubConfig `json:"github"`
+	InfluxDBConfig InfluxConfig `json:"influxdb"`
+	NSQConfig      nsq.Config   `json:"nsq"`
 }
 
-func loadConfig(filename string) *Config {
+func Load(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		logger.Fatal(err)
+		return nil, err
 	}
 
 	var config Config
 	if err := json.Unmarshal(content, &config); err != nil {
-		logger.WithFields(log.Fields{"error": err}).Fatal("failed to unmarshal config")
+		return nil, err
 	}
-	return &config
+	return &config, nil
 }

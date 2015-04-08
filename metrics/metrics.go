@@ -31,6 +31,17 @@ func NewMetric(path string, data map[string]interface{}) Metric {
 	return Metric{Path: path, Data: data}
 }
 
+func (m *Metrics) CollectItems(feed chan Metric) {
+	for {
+		select {
+		case i := <-feed:
+			m.Items = append(m.Items, i)
+		default:
+			close(feed)
+		}
+	}
+}
+
 func collectIssues(issues []octokit.Issue, out chan<- Metric) {
 	for _, i := range issues {
 		// Collect only issues that are not associated to pull requests.
@@ -126,14 +137,6 @@ func Retrieve(r repository.Repository) *Metrics {
 	waitGrp.Wait()
 
 	metrics := New(r)
-	for {
-		select {
-		case m := <-feed:
-			metrics.Items = append(metrics.Items, m)
-		default:
-			close(feed)
-			return metrics
-		}
-	}
+	metrics.CollectItems(feed)
 	return metrics
 }

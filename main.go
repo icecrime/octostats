@@ -3,51 +3,48 @@ package main
 import (
 	"os"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	"github.com/icecrime/octostats/config"
+	"github.com/icecrime/octostats/github"
 	"github.com/icecrime/octostats/influx"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/repository"
 )
 
 var (
-	config *Config
-	source repository.Repository
-	store  Store
-
-	logger = logrus.New()
+	source       repository.Repository
+	store        Store
+	globalConfig *config.Config
 )
 
-func configureLogger(loglevel string) {
-	if level, err := logrus.ParseLevel(loglevel); err != nil {
-		logger.Fatal(err)
-	} else {
-		logger.Level = level
-	}
-}
-
-func newStore(config *Config) Store {
-	switch config.Output {
+func newStore(c *config.Config) Store {
+	switch c.Output {
 	case "console":
 		return &debugStore{}
 	case "influxdb":
-		return influx.New(&config.InfluxDBConfig)
+		return influx.New(&c.InfluxDBConfig)
 	default:
-		logger.Fatal("Invalid output '%s'", config.Output)
+		log.Logger.Fatal("Invalid output '%s'", c.Output)
 		return nil
 	}
 }
 
 func before(cli *cli.Context) error {
-	configureLogger(cli.String("loglevel"))
+	log.Configure(cli.String("loglevel"))
 	if len(cli.Args()) > 0 {
-		logger.Fatalf("too many arguments")
+		log.Logger.Fatal("too many arguments")
 	}
 
-	config = loadConfig(cli.String("config"))
+	var err error
+	globalConfig, err = config.Load(cli.String("config"))
+	if err != nil {
+		log.Logger.Fatal(err)
+	}
 
-	store = newStore(config)
-	source = NewGitHubRepository(&config.GitHubConfig)
-	return nil
+	store = newStore(globalConfig)
+	source, err = github.NewGitHubRepository(&globalConfig.GitHubConfig)
+
+	return err
 }
 
 func main() {
@@ -63,6 +60,6 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		logger.Fatalf(err.Error())
+		log.Logger.Fatalf(err.Error())
 	}
 }

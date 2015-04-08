@@ -1,4 +1,4 @@
-package main
+package github
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/icecrime/octostats/config"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/repository"
 	"github.com/octokit/go-octokit/octokit"
 )
@@ -16,20 +18,16 @@ const (
 	rateLimitRemaining = "X-RateLimit-Remaining"
 )
 
-func githubAuthToken(config *GitHubConfig) string {
-	if config.AuthToken != "" {
-		return config.AuthToken
+func githubAuthToken(c *config.GitHubConfig) (string, error) {
+	if c.AuthToken != "" {
+		return c.AuthToken, nil
 	}
 
-	fileContent, err := ioutil.ReadFile(config.AuthTokenFile)
+	fileContent, err := ioutil.ReadFile(c.AuthTokenFile)
 	if err != nil {
-		logger.WithField("error", err).WithField("filename", config.AuthTokenFile).Fatal("failed to load github auth token file")
+		return "", err
 	}
-	return string(fileContent)
-}
-
-func logProgress(item, state string, page int) {
-	logger.WithField("page", page).WithField("page", page).Debugf("loading %s", item)
+	return string(fileContent), nil
 }
 
 func parseRepository(repo string) (string, string, error) {
@@ -39,24 +37,35 @@ func parseRepository(repo string) (string, string, error) {
 	return "", "", fmt.Errorf("bad repo format %s (expected username/repo)", repo)
 }
 
-func NewGitHubRepository(config *GitHubConfig) repository.Repository {
-	token := githubAuthToken(config)
+func NewGitHubRepository(c *config.GitHubConfig) (repository.Repository, error) {
+	token, err := githubAuthToken(c)
+	if err != nil {
+		return nil, err
+	}
 	ghClient := octokit.NewClient(&octokit.TokenAuth{AccessToken: token})
 
-	owner, name, err := parseRepository(config.Repository)
+	owner, name, err := parseRepository(c.Repository)
 	if err != nil {
-		logger.Fatal(err)
+		return nil, err
 	}
-	return &gitHubRepository{Owner: owner, Name: name, client: ghClient}
+	return &GitHubRepository{Owner: owner, Name: name, client: ghClient}, nil
 }
 
-type gitHubRepository struct {
+func NewGitHubRepositoryWithClient(owner, name string, client *octokit.Client) *GitHubRepository {
+	return &GitHubRepository{
+		Owner:  owner,
+		Name:   name,
+		client: client,
+	}
+}
+
+type GitHubRepository struct {
 	Owner  string
 	Name   string
 	client *octokit.Client
 }
 
-func (g *gitHubRepository) Nwo() string {
+func (g *GitHubRepository) Nwo() string {
 	return fmt.Sprintf("%s.%s", g.Owner, g.Name)
 }
 
@@ -84,7 +93,7 @@ func (c *PullRequestsCollection) Add(prs ...octokit.PullRequest) {
 	c.PullRequests = append(c.PullRequests, prs...)
 }
 
-func (repo *gitHubRepository) Issues(state, sort string) ([]octokit.Issue, error) {
+func (repo *GitHubRepository) Issues(state, sort string) ([]octokit.Issue, error) {
 	u, err := repo.expandURL(octokit.RepoIssuesURL, state, sort)
 	if err != nil {
 		return nil, err
@@ -110,7 +119,7 @@ func (repo *gitHubRepository) Issues(state, sort string) ([]octokit.Issue, error
 			next, res := is.All()
 
 			if res.HasError() {
-				logger.Debugf("Error fetching issues with %v\n", nu)
+				log.Logger.Debugf("Error fetching issues with %v\n", nu)
 				return
 			}
 			coll.Add(next...)
@@ -118,11 +127,11 @@ func (repo *gitHubRepository) Issues(state, sort string) ([]octokit.Issue, error
 
 	}
 
-	logger.Debugf("Loaded %d %s issues", len(coll.Issues), state)
+	log.Logger.Debugf("Loaded %d %s issues", len(coll.Issues), state)
 	return coll.Issues, res.Err
 }
 
-func (repo *gitHubRepository) expandURL(link octokit.Hyperlink, state, sort string) (*url.URL, error) {
+func (repo *GitHubRepository) expandURL(link octokit.Hyperlink, state, sort string) (*url.URL, error) {
 	queryParams := map[string]string{
 		"sort":      sort,
 		"direction": "asc",
@@ -144,7 +153,7 @@ func (repo *gitHubRepository) expandURL(link octokit.Hyperlink, state, sort stri
 	return u, nil
 }
 
-func (repo *gitHubRepository) PullRequests(state, sort string) ([]octokit.PullRequest, error) {
+func (repo *GitHubRepository) PullRequests(state, sort string) ([]octokit.PullRequest, error) {
 	u, err := repo.expandURL(octokit.PullRequestsURL, state, sort)
 	if err != nil {
 		return nil, err
@@ -170,7 +179,7 @@ func (repo *gitHubRepository) PullRequests(state, sort string) ([]octokit.PullRe
 			next, res := is.All()
 
 			if res.HasError() {
-				logger.Debugf("Error fetching pull requests with %v\n", nu)
+				log.Logger.Debugf("Error fetching pull requests with %v\n", nu)
 				return
 			}
 			coll.Add(next...)
@@ -178,7 +187,7 @@ func (repo *gitHubRepository) PullRequests(state, sort string) ([]octokit.PullRe
 
 	}
 
-	logger.Debugf("Loaded %d %s pull requests", len(coll.PullRequests), state)
+	log.Logger.Debugf("Loaded %d %s pull requests", len(coll.PullRequests), state)
 	return coll.PullRequests, res.Err
 }
 

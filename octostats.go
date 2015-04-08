@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/metrics"
 	"github.com/icecrime/octostats/nsq"
 
@@ -13,18 +14,18 @@ import (
 )
 
 func updateTicker() *time.Ticker {
-	duration, err := time.ParseDuration(config.UpdateFrequency)
+	duration, err := time.ParseDuration(globalConfig.UpdateFrequency)
 	if err != nil {
-		logger.Fatal(err)
+		log.Logger.Fatal(err)
 	}
 	return time.NewTicker(duration)
 }
 
 func onTimerTick() {
-	logger.Debug("Tick: fetching statistics")
+	log.Logger.Debug("Tick: fetching statistics")
 	stats := metrics.Retrieve(source)
 	if err := store.Send(stats); err != nil {
-		logger.Error(err)
+		log.Logger.Error(err)
 	}
 }
 
@@ -32,9 +33,9 @@ func mainCommand(cli *cli.Context) {
 	s := make(chan os.Signal, 64)
 	signal.Notify(s, syscall.SIGTERM, syscall.SIGINT)
 
-	queue, err := nsq.New(&config.NSQConfig, NewNSQHandler())
+	queue, err := nsq.New(&globalConfig.NSQConfig, NewNSQHandler())
 	if err != nil {
-		logger.Fatal(err)
+		log.Logger.Fatal(err)
 	}
 
 	ticker := updateTicker()
@@ -43,10 +44,10 @@ func mainCommand(cli *cli.Context) {
 		case <-ticker.C:
 			onTimerTick()
 		case <-queue.Consumer.StopChan:
-			logger.Debug("Queue stop channel signaled")
+			log.Logger.Debug("Queue stop channel signaled")
 			return
 		case sig := <-s:
-			logger.WithField("signal", sig).Debug("received signal")
+			log.Logger.WithField("signal", sig).Debug("received signal")
 			queue.Consumer.Stop()
 		}
 	}

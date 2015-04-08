@@ -3,26 +3,20 @@ package influx
 import (
 	"fmt"
 
+	"github.com/icecrime/octostats/config"
 	"github.com/icecrime/octostats/metrics"
 
 	influxClient "github.com/influxdb/influxdb/client"
 )
 
-type Config struct {
-	Endpoint string `json:"endpoint"`
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func New(config *Config) *store {
+func New(c *config.InfluxConfig) *store {
 	return &store{
-		config: config,
+		config: c,
 	}
 }
 
 type store struct {
-	config *Config
+	config *config.InfluxConfig
 }
 
 func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
