@@ -130,7 +130,7 @@ func (repo *gitHubRepository) expandURL(link octokit.Hyperlink, state, sort stri
 		"per_page":  "100",
 	}
 
-	u, err := link.Expand(octokit.M{"owner": repo.Owner, "name": repo.Name})
+	u, err := link.Expand(octokit.M{"owner": repo.Owner, "repo": repo.Name})
 	if err != nil {
 		return nil, err
 	}
