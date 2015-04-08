@@ -96,7 +96,7 @@ func TestAllPullRequests(t *testing.T) {
 	defer tearDown()
 
 	r := gitHubRepository{"docker", "docker", client}
-	prs, err := r.PullRequests("open", "asc")
+	prs, err := r.PullRequests("open", "updated")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestAllIssues(t *testing.T) {
 	defer tearDown()
 
 	r := gitHubRepository{"docker", "docker", client}
-	issues, err := r.Issues("open", "asc")
+	issues, err := r.Issues("open", "updated")
 	if err != nil {
 		t.Fatal(err)
 	}
