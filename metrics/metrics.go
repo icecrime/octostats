@@ -7,17 +7,16 @@ import (
 	"github.com/icecrime/octostats/repository"
 
 	log "github.com/Sirupsen/logrus"
-	gh "github.com/crosbymichael/octokat"
 )
 
 type Metrics struct {
-	Origin gh.Repo
+	Origin repository.Repository
 	Items  map[string]int
 }
 
 func New(origin repository.Repository) *Metrics {
 	return &Metrics{
-		Origin: origin.Id(),
+		Origin: origin,
 		Items:  make(map[string]int),
 	}
 }

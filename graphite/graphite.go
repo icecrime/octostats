@@ -23,7 +23,7 @@ type store struct {
 
 func (*store) format(metrics *metrics.Metrics) []byte {
 	timestamp := time.Now().Unix()
-	metricsPrefix := fmt.Sprintf("github.%s.%s", metrics.Origin.UserName, metrics.Origin.Name)
+	metricsPrefix := metrics.Origin.Nwo()
 
 	var buffer bytes.Buffer
 	for key, value := range metrics.Items {

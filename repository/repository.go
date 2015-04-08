@@ -1,11 +1,9 @@
 package repository
 
-import (
-	gh "github.com/crosbymichael/octokat"
-)
+import "github.com/octokit/go-octokit/octokit"
 
 type Repository interface {
-	Id() gh.Repo
-	Issues(string, string) ([]*gh.Issue, error)
-	PullRequests(string, string) ([]*gh.PullRequest, error)
+	Nwo() string
+	Issues(string, string) ([]octokit.Issue, error)
+	PullRequests(string, string) ([]octokit.PullRequest, error)
 }

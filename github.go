@@ -3,12 +3,17 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/icecrime/octostats/repository"
+	"github.com/octokit/go-octokit/octokit"
+)
 
-	gh "github.com/crosbymichael/octokat"
+const (
+	rateLimitRemaining = "X-RateLimit-Remaining"
 )
 
 func githubAuthToken(config *GitHubConfig) string {
@@ -27,79 +32,189 @@ func logProgress(item, state string, page int) {
 	logger.WithField("page", page).WithField("page", page).Debugf("loading %s", item)
 }
 
-func parseRepository(repo string) (*gh.Repo, error) {
+func parseRepository(repo string) (string, string, error) {
 	if splitRepos := strings.Split(repo, "/"); len(splitRepos) == 2 {
-		return &gh.Repo{Name: splitRepos[1], UserName: splitRepos[0]}, nil
+		return splitRepos[0], splitRepos[1], nil
 	}
-	return nil, fmt.Errorf("bad repo format %s (expected username/repo)", repo)
+	return "", "", fmt.Errorf("bad repo format %s (expected username/repo)", repo)
 }
 
 func NewGitHubRepository(config *GitHubConfig) repository.Repository {
-	ghClient := gh.NewClient()
-	ghClient.Token = githubAuthToken(config)
+	token := githubAuthToken(config)
+	ghClient := octokit.NewClient(&octokit.TokenAuth{AccessToken: token})
 
-	repoId, err := parseRepository(config.Repository)
+	owner, name, err := parseRepository(config.Repository)
 	if err != nil {
 		logger.Fatal(err)
 	}
-	return &gitHubRepository{id: repoId, client: ghClient}
+	return &gitHubRepository{Owner: owner, Name: name, client: ghClient}
 }
 
 type gitHubRepository struct {
-	id     *gh.Repo
-	client *gh.Client
+	Owner  string
+	Name   string
+	client *octokit.Client
 }
 
-func (repo *gitHubRepository) Id() gh.Repo {
-	return *repo.id
+func (g *gitHubRepository) Nwo() string {
+	return fmt.Sprintf("%s.%s", g.Owner, g.Name)
 }
 
-func (repo *gitHubRepository) Issues(state, sort string) ([]*gh.Issue, error) {
-	o := &gh.Options{}
-	o.QueryParams = map[string]string{
+type IssuesCollection struct {
+	Issues []octokit.Issue
+	m      sync.Mutex
+}
+
+func (c *IssuesCollection) Add(issues ...octokit.Issue) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.Issues = append(c.Issues, issues...)
+}
+
+type PullRequestsCollection struct {
+	PullRequests []octokit.PullRequest
+	m            sync.Mutex
+}
+
+func (c *PullRequestsCollection) Add(prs ...octokit.PullRequest) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.PullRequests = append(c.PullRequests, prs...)
+}
+
+func (repo *gitHubRepository) Issues(state, sort string) ([]octokit.Issue, error) {
+	u, err := repo.expandURL(octokit.RepoIssuesURL, state, sort)
+	if err != nil {
+		return nil, err
+	}
+
+	is := repo.client.Issues(u)
+	first, res := is.All()
+	coll := &IssuesCollection{Issues: first, m: sync.Mutex{}}
+
+	if !res.HasError() && res.LastPage != nil {
+		lastPage := res.LastPage
+		u, _ := lastPage.Expand(nil)
+		total, _ := strconv.Atoi(u.Query().Get("page"))
+
+		if getRateLimitRemaining(res.Response) <= total {
+			return coll.Issues, res.Err
+		}
+
+		urls := parseRemainingURLs(u, total)
+
+		collectResults(urls, func(nu *url.URL) {
+			is := repo.client.Issues(nu)
+			next, res := is.All()
+
+			if res.HasError() {
+				logger.Debugf("Error fetching issues with %v\n", nu)
+				return
+			}
+			coll.Add(next...)
+		})
+
+	}
+
+	logger.Debugf("Loaded %d %s issues", len(coll.Issues), state)
+	return coll.Issues, res.Err
+}
+
+func (repo *gitHubRepository) expandURL(link octokit.Hyperlink, state, sort string) (*url.URL, error) {
+	queryParams := map[string]string{
 		"sort":      sort,
 		"direction": "asc",
 		"state":     state,
 		"per_page":  "100",
 	}
 
-	prevSize := -1
-	allIssues := []*gh.Issue{}
-	for page := 1; len(allIssues) != prevSize; page++ {
-		logProgress("issues", state, page)
-		o.QueryParams["page"] = strconv.Itoa(page)
-		if issues, err := repo.client.Issues(*repo.id, o); err != nil {
-			return nil, err
-		} else {
-			prevSize = len(allIssues)
-			allIssues = append(allIssues, issues...)
-		}
+	u, err := link.Expand(octokit.M{"owner": repo.Owner, "repo": repo.Name})
+	if err != nil {
+		return nil, err
 	}
-	logger.Debugf("Loaded %d %s issues", len(allIssues), state)
-	return allIssues, nil
+
+	q := u.Query()
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+
+	return u, nil
 }
 
-func (repo *gitHubRepository) PullRequests(state, sort string) ([]*gh.PullRequest, error) {
-	o := &gh.Options{}
-	o.QueryParams = map[string]string{
-		"sort":      sort,
-		"direction": "asc",
-		"state":     state,
-		"per_page":  "100",
+func (repo *gitHubRepository) PullRequests(state, sort string) ([]octokit.PullRequest, error) {
+	u, err := repo.expandURL(octokit.PullRequestsURL, state, sort)
+	if err != nil {
+		return nil, err
 	}
 
-	prevSize := -1
-	allPullRequests := []*gh.PullRequest{}
-	for page := 1; len(allPullRequests) != prevSize; page++ {
-		logProgress("pull-requests", state, page)
-		o.QueryParams["page"] = strconv.Itoa(page)
-		if prs, err := repo.client.PullRequests(*repo.id, o); err != nil {
-			return nil, err
-		} else {
-			prevSize = len(allPullRequests)
-			allPullRequests = append(allPullRequests, prs...)
+	is := repo.client.PullRequests(u)
+	first, res := is.All()
+	coll := &PullRequestsCollection{PullRequests: first, m: sync.Mutex{}}
+
+	if !res.HasError() && res.LastPage != nil {
+		lastPage := res.LastPage
+		u, _ := lastPage.Expand(nil)
+		total, _ := strconv.Atoi(u.Query().Get("page"))
+
+		if getRateLimitRemaining(res.Response) <= total {
+			return coll.PullRequests, res.Err
 		}
+
+		urls := parseRemainingURLs(u, total)
+
+		collectResults(urls, func(nu *url.URL) {
+			is := repo.client.PullRequests(nu)
+			next, res := is.All()
+
+			if res.HasError() {
+				logger.Debugf("Error fetching pull requests with %v\n", nu)
+				return
+			}
+			coll.Add(next...)
+		})
+
 	}
-	logger.Debugf("Loaded %d %s pull requests", len(allPullRequests), state)
-	return allPullRequests, nil
+
+	logger.Debugf("Loaded %d %s pull requests", len(coll.PullRequests), state)
+	return coll.PullRequests, res.Err
+}
+
+func parseRemainingURLs(origin *url.URL, total int) []*url.URL {
+	urls := make([]*url.URL, total-1)
+
+	for i := 2; i <= total; i++ {
+		np, _ := url.Parse(origin.String())
+
+		q := np.Query()
+		q.Set("page", strconv.Itoa(i))
+		np.RawQuery = q.Encode()
+
+		urls[i-2] = np
+	}
+
+	return urls
+}
+
+func collectResults(urls []*url.URL, collector func(*url.URL)) {
+	var wg sync.WaitGroup
+	for _, p := range urls {
+		wg.Add(1)
+
+		go func(nu *url.URL) {
+			defer wg.Done()
+			collector(nu)
+		}(p)
+	}
+	wg.Wait()
+}
+
+func getRateLimitRemaining(res *octokit.Response) int {
+	rate, err := strconv.Atoi(res.Header.Get(rateLimitRemaining))
+	if err != nil {
+		rate = 60
+	}
+	return rate
 }
