@@ -33,9 +33,18 @@ func mainCommand(cli *cli.Context) {
 	s := make(chan os.Signal, 64)
 	signal.Notify(s, syscall.SIGTERM, syscall.SIGINT)
 
-	queue, err := nsq.New(&globalConfig.NSQConfig, NewNSQHandler())
-	if err != nil {
-		log.Logger.Fatal(err)
+	var queue *nsq.Queue
+	var queueStopChan chan int
+
+	if globalConfig.NSQConfig != nil {
+		var err error
+		queue, err = nsq.New(globalConfig.NSQConfig, NewNSQHandler())
+		if err != nil {
+			log.Logger.Fatal(err)
+		}
+		queueStopChan = queue.Consumer.StopChan
+	} else {
+		queueStopChan = make(chan int, 1)
 	}
 
 	ticker := updateTicker()
@@ -43,12 +52,14 @@ func mainCommand(cli *cli.Context) {
 		select {
 		case <-ticker.C:
 			onTimerTick()
-		case <-queue.Consumer.StopChan:
+		case <-queueStopChan:
 			log.Logger.Debug("Queue stop channel signaled")
 			return
 		case sig := <-s:
 			log.Logger.WithField("signal", sig).Debug("received signal")
-			queue.Consumer.Stop()
+			if queue != nil {
+				queue.Consumer.Stop()
+			}
 		}
 	}
 }

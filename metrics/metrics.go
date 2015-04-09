@@ -4,15 +4,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/repository"
 	"github.com/octokit/go-octokit/octokit"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 type Metrics struct {
 	Origin repository.Repository
 	Items  []Metric
+	m      sync.Mutex
+}
+
+func (m *Metrics) Add(items ...Metric) {
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.Items = append(m.Items, items...)
 }
 
 func New(origin repository.Repository) *Metrics {
@@ -31,18 +37,8 @@ func NewMetric(path string, data map[string]interface{}) Metric {
 	return Metric{Path: path, Data: data}
 }
 
-func (m *Metrics) CollectItems(feed chan Metric) {
-	for {
-		select {
-		case i := <-feed:
-			m.Items = append(m.Items, i)
-		default:
-			close(feed)
-		}
-	}
-}
-
-func collectIssues(issues []octokit.Issue, out chan<- Metric) {
+func collectIssues(issues []octokit.Issue) []Metric {
+	var items []Metric
 	for _, i := range issues {
 		// Collect only issues that are not associated to pull requests.
 		// All pull requests are issues but not all issues are pull requests.
@@ -52,18 +48,20 @@ func collectIssues(issues []octokit.Issue, out chan<- Metric) {
 				"state": i.State,
 				"id":    i.Number,
 			})
-			out <- m
+			items = append(items, m)
 		}
 		for _, l := range i.Labels {
 			m := NewMetric("labels.data", map[string]interface{}{
 				"name": l.Name,
 			})
-			out <- m
+			items = append(items, m)
 		}
 	}
+	return items
 }
 
-func collectPrs(pullRequests []octokit.PullRequest, out chan<- Metric) {
+func collectPrs(pullRequests []octokit.PullRequest) []Metric {
+	var items []Metric
 	for _, pr := range pullRequests {
 		m := NewMetric("pull_requests.data", map[string]interface{}{
 			"time":   pr.CreatedAt.Unix(),
@@ -71,55 +69,65 @@ func collectPrs(pullRequests []octokit.PullRequest, out chan<- Metric) {
 			"merged": pr.Merged,
 			"id":     pr.ID,
 		})
-		out <- m
+		items = append(items, m)
 	}
+	return items
 }
 
-func collectOpenedPullRequests(r repository.Repository, out chan<- Metric) {
+func collectOpenedPullRequests(r repository.Repository) []Metric {
 	pullRequests, err := r.PullRequests("open", "updated")
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Logger.Fatalf(err.Error())
 	}
 
-	out <- NewMetric("pull_requests.open", map[string]interface{}{"count": len(pullRequests)})
+	var items []Metric
+
+	items = append(items, NewMetric("pull_requests.open", map[string]interface{}{"count": len(pullRequests)}))
 	if len(pullRequests) > 0 {
-		collectPrs(pullRequests, out)
+		items = append(items, collectPrs(pullRequests)...)
 
 		value := int(time.Since(pullRequests[0].UpdatedAt).Hours() / 24)
-		out <- NewMetric("pull_requests.least_recently_updated_days", map[string]interface{}{"count": value})
+		items = append(items, NewMetric("pull_requests.least_recently_updated_days", map[string]interface{}{"count": value}))
 	}
+
+	return items
 }
 
-func collectClosedPullRequests(r repository.Repository, out chan<- Metric) {
+func collectClosedPullRequests(r repository.Repository) []Metric {
 	pullRequests, err := r.PullRequests("closed", "updated")
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Logger.Fatalf(err.Error())
 	}
-	out <- NewMetric("pull_requests.closed", map[string]interface{}{"count": len(pullRequests)})
-	collectPrs(pullRequests, out)
+	var items []Metric
+	items = append(items, NewMetric("pull_requests.closed", map[string]interface{}{"count": len(pullRequests)}))
+	items = append(items, collectPrs(pullRequests)...)
+	return items
 }
 
-func collectOpenedIssues(r repository.Repository, out chan<- Metric) {
+func collectOpenedIssues(r repository.Repository) []Metric {
 	issues, err := r.Issues("open", "updated")
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Logger.Fatalf(err.Error())
 	}
-	out <- NewMetric("issues.open", map[string]interface{}{"count": len(issues)})
-	collectIssues(issues, out)
+	var items []Metric
+	items = append(items, NewMetric("issues.open", map[string]interface{}{"count": len(issues)}))
+	items = append(items, collectIssues(issues)...)
+	return items
 }
 
-func collectClosedIssues(r repository.Repository, out chan<- Metric) {
+func collectClosedIssues(r repository.Repository) []Metric {
 	issues, err := r.Issues("closed", "updated")
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Logger.Fatalf(err.Error())
 	}
-	out <- NewMetric("issues.closed", map[string]interface{}{"count": len(issues)})
-	collectIssues(issues, out)
+	var items []Metric
+	items = append(items, NewMetric("issues.closed", map[string]interface{}{"count": len(issues)}))
+	items = append(items, collectIssues(issues)...)
+	return items
 }
 
 func Retrieve(r repository.Repository) *Metrics {
-	feed := make(chan Metric, 100)
-	tasks := []func(repository.Repository, chan<- Metric){
+	tasks := []func(repository.Repository) []Metric{
 		collectOpenedIssues,
 		collectClosedIssues,
 		collectOpenedPullRequests,
@@ -128,15 +136,17 @@ func Retrieve(r repository.Repository) *Metrics {
 
 	var waitGrp sync.WaitGroup
 	waitGrp.Add(len(tasks))
+
+	metrics := New(r)
+
 	for _, fn := range tasks {
-		go func(fn func(repository.Repository, chan<- Metric)) {
+		go func(fn func(repository.Repository) []Metric) {
 			defer waitGrp.Done()
-			fn(r, feed)
+			metrics.Add(fn(r)...)
 		}(fn)
 	}
 	waitGrp.Wait()
 
-	metrics := New(r)
-	metrics.CollectItems(feed)
+	log.Logger.Debug("Retrieve: end")
 	return metrics
 }

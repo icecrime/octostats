@@ -27,7 +27,7 @@ type Config struct {
 
 	GitHubConfig   GitHubConfig `json:"github"`
 	InfluxDBConfig InfluxConfig `json:"influxdb"`
-	NSQConfig      nsq.Config   `json:"nsq"`
+	NSQConfig      *nsq.Config  `json:"nsq,omitempty"`
 }
 
 func Load(filename string) (*Config, error) {

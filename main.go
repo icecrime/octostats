@@ -24,7 +24,7 @@ func newStore(c *config.Config) Store {
 	case "influxdb":
 		return influx.New(&c.InfluxDBConfig)
 	default:
-		log.Logger.Fatal("Invalid output '%s'", c.Output)
+		log.Logger.Fatalf("Invalid output '%s'", c.Output)
 		return nil
 	}
 }

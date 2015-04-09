@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/icecrime/octostats/config"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/metrics"
 
 	influxClient "github.com/influxdb/influxdb/client"
@@ -23,19 +24,21 @@ func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
 	metricsPrefix := metrics.Origin.Nwo()
 
+	log.Logger.Debugf("Saving %d metrics for %s", len(metrics.Items), metricsPrefix)
 	for _, m := range metrics.Items {
 		var columns []string
-		var points [][]interface{}
+		var values []interface{}
 
 		for k, v := range m.Data {
 			columns = append(columns, k)
-			points = append(points, []interface{}{v})
+			values = append(values, v)
 		}
 
+		name := fmt.Sprintf("%s.%s", metricsPrefix, m.Path)
 		series = append(series, &influxClient.Series{
-			Name:    fmt.Sprintf("%s.%s", metricsPrefix, m.Path),
+			Name:    name,
 			Columns: columns,
-			Points:  points,
+			Points:  [][]interface{}{values},
 		})
 	}
 
