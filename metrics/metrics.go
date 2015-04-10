@@ -67,7 +67,7 @@ func collectPrs(pullRequests []octokit.PullRequest) []Metric {
 			"time":   pr.CreatedAt.Unix(),
 			"state":  pr.State,
 			"merged": pr.Merged,
-			"id":     pr.ID,
+			"id":     pr.Number,
 		})
 		items = append(items, m)
 	}
