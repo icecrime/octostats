@@ -24,7 +24,6 @@ func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
 	metricsPrefix := metrics.Origin.Nwo()
 
-	log.Logger.Debugf("Saving %d metrics for %s", len(metrics.Items), metricsPrefix)
 	for _, m := range metrics.Items {
 		var columns []string
 		var values []interface{}
@@ -55,5 +54,9 @@ func (s *store) Send(metrics *metrics.Metrics) error {
 	if err != nil {
 		return err
 	}
-	return client.WriteSeries(s.format(metrics))
+	log.Logger.Debugf("Saving %d metrics for %s", len(metrics.Items), metrics.Origin.Nwo())
+	err = client.WriteSeries(s.format(metrics))
+	log.Logger.Debugf("Saving %d metrics for %s: DONE", len(metrics.Items), metrics.Origin.Nwo())
+
+	return err
 }
