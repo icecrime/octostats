@@ -1,7 +1,7 @@
 Octostats [![Build Status](https://travis-ci.org/icecrime/octostats.svg)](https://travis-ci.org/icecrime/octostats)
 =========
 
-GitHub repository statistics to Graphite
+GitHub repository statistics to InfuxDB.
 
 ## Usage
 

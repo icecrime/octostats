@@ -1,14 +1,10 @@
 {
-    "output": "graphite",
+    "output": "influxdb",
     "update_frequency": "1m",
 
     "github": {
         "tokenfile": ".gittoken",
         "repository": "icecrime/octostats"
-    },
-
-    "graphite": {
-        "endpoint": "localhost:2003"
     },
 
     "influxdb": {

@@ -3,37 +3,41 @@ package influx
 import (
 	"fmt"
 
+	"github.com/icecrime/octostats/config"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/metrics"
 
 	influxClient "github.com/influxdb/influxdb/client"
 )
 
-type Config struct {
-	Endpoint string `json:"endpoint"`
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func New(config *Config) *store {
+func New(c *config.InfluxConfig) *store {
 	return &store{
-		config: config,
+		config: c,
 	}
 }
 
 type store struct {
-	config *Config
+	config *config.InfluxConfig
 }
 
 func (*store) format(metrics *metrics.Metrics) []*influxClient.Series {
 	series := []*influxClient.Series{}
 	metricsPrefix := metrics.Origin.Nwo()
 
-	for k, v := range metrics.Items {
+	for _, m := range metrics.Items {
+		var columns []string
+		var values []interface{}
+
+		for k, v := range m.Data {
+			columns = append(columns, k)
+			values = append(values, v)
+		}
+
+		name := fmt.Sprintf("%s.%s", metricsPrefix, m.Path)
 		series = append(series, &influxClient.Series{
-			Name:    fmt.Sprintf("%s.%s", metricsPrefix, k),
-			Columns: []string{"count"},
-			Points:  [][]interface{}{{v}},
+			Name:    name,
+			Columns: columns,
+			Points:  [][]interface{}{values},
 		})
 	}
 
@@ -50,5 +54,9 @@ func (s *store) Send(metrics *metrics.Metrics) error {
 	if err != nil {
 		return err
 	}
-	return client.WriteSeries(s.format(metrics))
+	log.Logger.Debugf("Saving %d metrics for %s", len(metrics.Items), metrics.Origin.Nwo())
+	err = client.WriteSeries(s.format(metrics))
+	log.Logger.Debugf("Saving %d metrics for %s: DONE", len(metrics.Items), metrics.Origin.Nwo())
+
+	return err
 }

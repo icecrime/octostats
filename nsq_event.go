@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bitly/go-nsq"
+	"github.com/icecrime/octostats/log"
 	"github.com/icecrime/octostats/metrics"
 )
 
@@ -27,7 +28,7 @@ type NSQHandler struct {
 }
 
 func (n *NSQHandler) HandleMessage(m *nsq.Message) error {
-	logger.Debug("Queue event received")
+	log.Logger.Debug("Queue event received")
 
 	var p partialPayload
 	if err := json.Unmarshal(m.Body, &p); err != nil {
@@ -38,11 +39,13 @@ func (n *NSQHandler) HandleMessage(m *nsq.Message) error {
 	if p.Action == "closed" && p.PullRequest.ClosedAt != nil {
 		mergeString := map[bool]string{true: "merged", false: "not_merged"}
 		metricsPath := fmt.Sprintf("pull_requests.close_delay.%s", mergeString[p.PullRequest.Merged])
-		stats.Items[metricsPath] = int(p.PullRequest.ClosedAt.Sub(p.PullRequest.CreatedAt).Hours())
+		hours := int(p.PullRequest.ClosedAt.Sub(p.PullRequest.CreatedAt).Hours())
+		metric := metrics.NewMetric(metricsPath, map[string]interface{}{"count": hours})
+		stats.Items = append(stats.Items, metric)
 	}
 
 	if err := n.store.Send(stats); err != nil {
-		logger.Error(err)
+		log.Logger.Error(err)
 	}
 	return nil
 }
